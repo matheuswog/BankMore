@@ -5,9 +5,9 @@ Sistema de banco digital baseado em microsserviços desenvolvido para o desafio 
 ## Arquitetura
 
 O sistema foi desenvolvido seguindo os padrões:
-- **Domain-Driven Design (DDD)**
-- **CQRS (Command Query Responsibility Segregation)**
-- **Arquitetura de Microsserviços**
+- **Domain-Driven Design (DDD)** - para manter a lógica de negócio organizada
+- **CQRS (Command Query Responsibility Segregation)** - separando comandos de consultas
+- **Arquitetura de Microsserviços** - cada funcionalidade em seu próprio serviço
 
 ## Funcionalidades Implementadas
 
@@ -32,14 +32,14 @@ O sistema foi desenvolvido seguindo os padrões:
 
 ## Tecnologias Utilizadas
 
-- **.NET 9.0**
-- **Dapper** para acesso a dados
-- **SQLite** como banco de dados
-- **MediatR** para CQRS
-- **JWT** para autenticação
-- **Swagger** para documentação
-- **Docker** para containerização
-- **Kafka** para comunicação assíncrona (configurado)
+- **.NET 9.0** - framework principal
+- **Dapper** - ORM leve para acesso a dados
+- **SQLite** - banco de dados para desenvolvimento (fácil de configurar)
+- **MediatR** - implementação do padrão CQRS
+- **JWT** - autenticação baseada em tokens
+- **Swagger** - documentação automática da API
+- **Docker** - containerização para facilitar deploy
+- **Kafka** - comunicação assíncrona entre serviços (configurado)
 
 ## Como Executar
 
@@ -50,7 +50,7 @@ O sistema foi desenvolvido seguindo os padrões:
 git clone <url-do-repositorio>
 cd BankMore
 
-# Executar com Docker Compose
+# Executar com Docker Compose (mais fácil)
 docker-compose up --build
 ```
 
@@ -60,7 +60,7 @@ docker-compose up --build
 # Restaurar dependências
 dotnet restore
 
-# Executar as APIs
+# Executar as APIs (em terminais separados)
 dotnet run --project src/BankMore.ContaCorrente.API
 dotnet run --project src/BankMore.Transferencia.API
 dotnet run --project src/BankMore.Tarifa.API
@@ -136,14 +136,15 @@ curl -X POST "https://localhost:7002/api/transferencia/efetuar" \
 ## Segurança
 
 - Todas as APIs são protegidas com autenticação JWT
-- Senhas são criptografadas com SHA256
-- Validação de CPF implementada
+- Senhas são criptografadas com SHA256 (em produção, seria melhor usar bcrypt)
+- Validação de CPF implementada com algoritmo completo
 - Dados sensíveis não transitam entre microsserviços
 
 ## Idempotência
 
 - Todas as operações são idempotentes através da `IdentificacaoRequisicao`
 - Permite retry seguro em caso de falhas de rede
+- Evita processamento duplicado de transferências
 
 ## Testes
 
@@ -151,6 +152,9 @@ curl -X POST "https://localhost:7002/api/transferencia/efetuar" \
 # Executar testes unitários
 dotnet test tests/BankMore.ContaCorrente.Tests
 dotnet test tests/BankMore.Transferencia.Tests
+
+# Executar todos os testes
+dotnet test
 ```
 
 ## Estrutura do Projeto
@@ -183,8 +187,8 @@ BankMore/
 - Consulta de saldo
 
 ✅ **Padrões Arquiteturais**
-- DDD (Domain-Driven Design)
-- CQRS (Command Query Responsibility Segregation)
+- DDD (Domain-Driven Design) - lógica de negócio bem organizada
+- CQRS (Command Query Responsibility Segregation) - separação clara de responsabilidades
 
 ✅ **Segurança**
 - Autenticação JWT em todas as APIs

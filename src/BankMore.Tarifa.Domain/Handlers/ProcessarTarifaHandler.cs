@@ -19,16 +19,13 @@ public class ProcessarTarifaHandler : IRequestHandler<ProcessarTarifaCommand, Re
 
     public async Task<Result<bool>> Handle(ProcessarTarifaCommand request, CancellationToken cancellationToken)
     {
-        // Verificar se já existe tarifa para esta transferência (idempotência)
         if (await _tarifaRepository.ExisteIdentificacaoTransferenciaAsync(request.IdentificacaoRequisicao))
         {
-            return Result<bool>.SucessoResultado(true); // Idempotência - já processado
+            return Result<bool>.SucessoResultado(true);
         }
 
-        // Obter valor da tarifa do appsettings
-        var valorTarifa = 2.00m; // Valor fixo por enquanto
+        var valorTarifa = 2.00m; // TODO: Ler do appsettings
 
-        // Criar tarifa
         var tarifa = new Domain.Entities.Tarifa
         {
             ContaCorrenteId = request.ContaCorrenteId,
@@ -40,7 +37,6 @@ public class ProcessarTarifaHandler : IRequestHandler<ProcessarTarifaCommand, Re
 
         await _tarifaRepository.InserirAsync(tarifa);
 
-        // Enviar evento para Kafka (opcional)
         await EnviarEventoTarifaRealizada(tarifa);
 
         return Result<bool>.SucessoResultado(true);
@@ -50,13 +46,11 @@ public class ProcessarTarifaHandler : IRequestHandler<ProcessarTarifaCommand, Re
     {
         try
         {
-            // Kafka service será injetado via DI
-            // Por enquanto, apenas log
+            // TODO: Implementar Kafka
             Console.WriteLine($"Tarifa processada: Conta {tarifa.ContaCorrenteId} - {tarifa.ValorTarifado:C}");
         }
         catch (Exception ex)
         {
-            // Log do erro, mas não falha o processamento
             Console.WriteLine($"Erro ao enviar evento para Kafka: {ex.Message}");
         }
     }

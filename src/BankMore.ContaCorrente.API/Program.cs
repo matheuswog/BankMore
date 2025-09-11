@@ -9,7 +9,6 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -41,7 +40,6 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -59,25 +57,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// MediatR
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CadastrarContaCorrenteHandler).Assembly));
 
-// Database
 builder.Services.AddScoped<DatabaseContext>(provider => 
     new DatabaseContext(builder.Configuration.GetConnectionString("DefaultConnection") ?? ""));
 
-// Repositories
 builder.Services.AddScoped<BankMore.ContaCorrente.Domain.Interfaces.IContaCorrenteRepository, ContaCorrenteRepository>();
 builder.Services.AddScoped<BankMore.ContaCorrente.Domain.Interfaces.IMovimentoRepository, MovimentoRepository>();
 
-// HttpClient
 builder.Services.AddHttpClient();
 
-// Kafka será implementado posteriormente
+// TODO: Implementar Kafka posteriormente
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -89,7 +82,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Initialize database
 await InitializeDatabase(app);
 
 app.Run();
@@ -99,7 +91,6 @@ static async Task InitializeDatabase(WebApplication app)
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
     
-    // Create tables
     var createTablesSql = @"
         CREATE TABLE IF NOT EXISTS ContaCorrente (
             Id INTEGER PRIMARY KEY AUTOINCREMENT,

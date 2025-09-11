@@ -24,7 +24,6 @@ public class LoginHandler : IRequestHandler<LoginCommand, Result<LoginResponse>>
 
     public async Task<Result<LoginResponse>> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
-        // Buscar conta por CPF ou número da conta
         var conta = await _repository.ObterPorCpfOuNumeroContaAsync(request.Identificacao);
 
         if (conta == null)
@@ -32,20 +31,17 @@ public class LoginHandler : IRequestHandler<LoginCommand, Result<LoginResponse>>
             return Result<LoginResponse>.ErroResultado("Conta não encontrada", TipoFalha.UserUnauthorized.ToString());
         }
 
-        // Verificar se a conta está ativa
         if (!conta.Ativo)
         {
             return Result<LoginResponse>.ErroResultado("Conta inativa", TipoFalha.UserUnauthorized.ToString());
         }
 
-        // Verificar senha
         var senhaCriptografada = CriptografarSenha(request.Senha);
         if (conta.Senha != senhaCriptografada)
         {
             return Result<LoginResponse>.ErroResultado("Senha inválida", TipoFalha.UserUnauthorized.ToString());
         }
 
-        // Gerar token JWT
         var token = GerarToken(conta);
 
         var response = new LoginResponse

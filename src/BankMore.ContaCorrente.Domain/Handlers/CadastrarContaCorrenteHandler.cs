@@ -19,31 +19,26 @@ public class CadastrarContaCorrenteHandler : IRequestHandler<CadastrarContaCorre
 
     public async Task<Result<string>> Handle(CadastrarContaCorrenteCommand request, CancellationToken cancellationToken)
     {
-        // Validar CPF
         if (!ValidarCpf(request.Cpf))
         {
             return Result<string>.ErroResultado("CPF inválido", TipoFalha.InvalidDocument.ToString());
         }
 
-        // Verificar se CPF já existe
         if (await _repository.ExisteCpfAsync(request.Cpf))
         {
             return Result<string>.ErroResultado("CPF já cadastrado", TipoFalha.InvalidDocument.ToString());
         }
 
-        // Gerar número da conta
+        // TODO: Implementar geração mais robusta no futuro
         var numeroConta = GerarNumeroConta();
 
-        // Verificar se número da conta já existe
         while (await _repository.ExisteNumeroContaAsync(numeroConta))
         {
             numeroConta = GerarNumeroConta();
         }
 
-        // Criptografar senha
         var senhaCriptografada = CriptografarSenha(request.Senha);
 
-        // Criar conta corrente
         var contaCorrente = new Entities.ContaCorrente
         {
             Cpf = request.Cpf,

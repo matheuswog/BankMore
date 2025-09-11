@@ -14,6 +14,8 @@ docker-compose up --build
    - Transferencia: https://localhost:7002
    - Tarifa: https://localhost:7003
 
+3. Use o Swagger UI para testar as APIs diretamente no navegador
+
 ## Fluxo Completo de Uso
 
 ### 1. Cadastrar Primeira Conta

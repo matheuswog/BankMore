@@ -19,7 +19,6 @@ public class ConsultarSaldoHandler : IRequestHandler<ConsultarSaldoQuery, Result
 
     public async Task<Result<SaldoResponse>> Handle(ConsultarSaldoQuery request, CancellationToken cancellationToken)
     {
-        // Buscar conta
         var conta = await _contaRepository.ObterPorIdAsync(request.ContaCorrenteId);
 
         if (conta == null)
@@ -27,13 +26,11 @@ public class ConsultarSaldoHandler : IRequestHandler<ConsultarSaldoQuery, Result
             return Result<SaldoResponse>.ErroResultado("Conta não encontrada", TipoFalha.InvalidAccount.ToString());
         }
 
-        // Verificar se conta está ativa
         if (!conta.Ativo)
         {
             return Result<SaldoResponse>.ErroResultado("Conta inativa", TipoFalha.InactiveAccount.ToString());
         }
 
-        // Calcular saldo
         var saldo = await _movimentoRepository.CalcularSaldoAsync(request.ContaCorrenteId);
 
         var response = new SaldoResponse(conta.NumeroConta, conta.NomeTitular, saldo);

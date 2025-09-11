@@ -19,45 +19,38 @@ public class MovimentarContaHandler : IRequestHandler<MovimentarContaCommand, Re
 
     public async Task<Result<bool>> Handle(MovimentarContaCommand request, CancellationToken cancellationToken)
     {
-        // Verificar se já existe movimentação com esta identificação (idempotência)
         if (await _movimentoRepository.ExisteIdentificacaoRequisicaoAsync(request.IdentificacaoRequisicao))
         {
-            return Result<bool>.SucessoResultado(true); // Idempotência - já processado
+            return Result<bool>.SucessoResultado(true);
         }
 
-        // Buscar conta origem
         var contaOrigem = await _contaRepository.ObterPorIdAsync(request.ContaCorrenteId);
         if (contaOrigem == null)
         {
             return Result<bool>.ErroResultado("Conta não encontrada", TipoFalha.InvalidAccount.ToString());
         }
 
-        // Verificar se conta está ativa
         if (!contaOrigem.Ativo)
         {
             return Result<bool>.ErroResultado("Conta inativa", TipoFalha.InactiveAccount.ToString());
         }
 
-        // Validar valor
         if (request.Valor <= 0)
         {
             return Result<bool>.ErroResultado("Valor deve ser maior que zero", TipoFalha.InvalidValue.ToString());
         }
 
-        // Validar tipo de movimento
         if (request.TipoMovimento != "C" && request.TipoMovimento != "D")
         {
             return Result<bool>.ErroResultado("Tipo de movimento inválido", TipoFalha.InvalidType.ToString());
         }
 
-        // Se for débito para conta diferente da logada, não permitir
         if (request.TipoMovimento == "D" && request.ContaCorrenteDestinoId.HasValue && 
             request.ContaCorrenteDestinoId.Value != request.ContaCorrenteId)
         {
             return Result<bool>.ErroResultado("Débito só pode ser realizado na própria conta", TipoFalha.InvalidType.ToString());
         }
 
-        // Se for crédito para conta diferente, verificar se conta destino existe e está ativa
         if (request.TipoMovimento == "C" && request.ContaCorrenteDestinoId.HasValue)
         {
             var contaDestino = await _contaRepository.ObterPorIdAsync(request.ContaCorrenteDestinoId.Value);
@@ -71,7 +64,6 @@ public class MovimentarContaHandler : IRequestHandler<MovimentarContaCommand, Re
             }
         }
 
-        // Criar movimento
         var movimento = new Movimento
         {
             IdentificacaoRequisicao = request.IdentificacaoRequisicao,

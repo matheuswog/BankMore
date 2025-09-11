@@ -25,19 +25,16 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
 
     public async Task<Result<bool>> Handle(EfetuarTransferenciaCommand request, CancellationToken cancellationToken)
     {
-        // Verificar se já existe transferência com esta identificação (idempotência)
         if (await _transferenciaRepository.ExisteIdentificacaoRequisicaoAsync(request.IdentificacaoRequisicao))
         {
-            return Result<bool>.SucessoResultado(true); // Idempotência - já processado
+            return Result<bool>.SucessoResultado(true);
         }
 
-        // Validar valor
         if (request.Valor <= 0)
         {
             return Result<bool>.ErroResultado("Valor deve ser maior que zero", "INVALID_VALUE");
         }
 
-        // Verificar se conta origem existe e está ativa (via API ContaCorrente)
         var contaOrigemValida = await ValidarConta(request.ContaOrigemId);
         if (!contaOrigemValida.Sucesso)
         {
@@ -45,7 +42,6 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
                 contaOrigemValida.Erro?.TipoFalha ?? "INVALID_ACCOUNT");
         }
 
-        // Verificar se conta destino existe e está ativa (via API ContaCorrente)
         var contaDestinoValida = await ValidarConta(request.ContaDestinoId);
         if (!contaDestinoValida.Sucesso)
         {
@@ -53,7 +49,6 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
                 contaDestinoValida.Erro?.TipoFalha ?? "INVALID_ACCOUNT");
         }
 
-        // Realizar débito na conta origem
         var debitoResult = await RealizarMovimentacao(request.ContaOrigemId, request.Valor, "D", request.IdentificacaoRequisicao);
         if (!debitoResult.Sucesso)
         {
@@ -63,7 +58,6 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
 
         try
         {
-            // Realizar crédito na conta destino
             var creditoResult = await RealizarMovimentacao(request.ContaDestinoId, request.Valor, "C", request.IdentificacaoRequisicao);
             if (!creditoResult.Sucesso)
             {
@@ -74,7 +68,6 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
                     creditoResult.Erro?.TipoFalha ?? "TRANSFER_ERROR");
             }
 
-            // Registrar transferência
             var transferencia = new Entities.Transferencia
             {
                 IdentificacaoRequisicao = request.IdentificacaoRequisicao,
@@ -95,7 +88,7 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
         }
         catch (Exception ex)
         {
-            // Estorno na conta origem em caso de erro
+            // Estorno em caso de erro
             await RealizarMovimentacao(request.ContaOrigemId, request.Valor, "C", $"{request.IdentificacaoRequisicao}_ESTORNO");
             
             return Result<bool>.ErroResultado($"Erro interno: {ex.Message}", "INTERNAL_ERROR");
