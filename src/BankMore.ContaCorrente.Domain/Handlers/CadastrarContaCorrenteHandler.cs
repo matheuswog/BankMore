@@ -2,7 +2,7 @@ using MediatR;
 using BankMore.ContaCorrente.Domain.Commands;
 using BankMore.ContaCorrente.Domain.Entities;
 using BankMore.ContaCorrente.Domain.Enums;
-using BankMore.ContaCorrente.Infrastructure.Repositories;
+using BankMore.ContaCorrente.Domain.Interfaces;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -44,7 +44,7 @@ public class CadastrarContaCorrenteHandler : IRequestHandler<CadastrarContaCorre
         var senhaCriptografada = CriptografarSenha(request.Senha);
 
         // Criar conta corrente
-        var contaCorrente = new ContaCorrente
+        var contaCorrente = new Entities.ContaCorrente
         {
             Cpf = request.Cpf,
             NomeTitular = request.NomeTitular,

@@ -1,11 +1,7 @@
-using BankMore.ContaCorrente.Domain.Entities;
+using BankMore.ContaCorrente.Domain.Interfaces;
 
 namespace BankMore.ContaCorrente.Infrastructure.Repositories;
 
-public interface IMovimentoRepository
+public interface IMovimentoRepository : Domain.Interfaces.IMovimentoRepository
 {
-    Task<Movimento> InserirAsync(Movimento movimento);
-    Task<decimal> CalcularSaldoAsync(int contaCorrenteId);
-    Task<bool> ExisteIdentificacaoRequisicaoAsync(string identificacaoRequisicao);
-    Task<List<Movimento>> ObterMovimentosPorContaAsync(int contaCorrenteId);
 }

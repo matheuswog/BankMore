@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using MediatR;
 using BankMore.Tarifa.Domain.Commands;
+using BankMore.Tarifa.Domain.ValueObjects;
 using Microsoft.AspNetCore.Authorization;
 
 namespace BankMore.Tarifa.API.Controllers;

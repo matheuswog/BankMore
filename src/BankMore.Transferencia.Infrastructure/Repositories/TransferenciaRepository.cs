@@ -13,7 +13,7 @@ public class TransferenciaRepository : ITransferenciaRepository
         _context = context;
     }
 
-    public async Task<Transferencia> InserirAsync(Transferencia transferencia)
+    public async Task<Domain.Entities.Transferencia> InserirAsync(Domain.Entities.Transferencia transferencia)
     {
         const string sql = @"
             INSERT INTO Transferencia (IdentificacaoRequisicao, ContaOrigemId, ContaDestinoId, Valor, DataTransferencia, Descricao, Processada)
@@ -32,13 +32,13 @@ public class TransferenciaRepository : ITransferenciaRepository
         return count > 0;
     }
 
-    public async Task<Transferencia?> ObterPorIdAsync(int id)
+    public async Task<Domain.Entities.Transferencia?> ObterPorIdAsync(int id)
     {
         const string sql = @"
             SELECT Id, IdentificacaoRequisicao, ContaOrigemId, ContaDestinoId, Valor, DataTransferencia, Descricao, Processada
             FROM Transferencia 
             WHERE Id = @Id";
 
-        return await _context.Connection.QueryFirstOrDefaultAsync<Transferencia>(sql, new { Id = id });
+        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.Transferencia>(sql, new { Id = id });
     }
 }

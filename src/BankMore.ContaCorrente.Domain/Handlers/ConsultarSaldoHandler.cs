@@ -1,7 +1,8 @@
 using MediatR;
 using BankMore.ContaCorrente.Domain.Queries;
 using BankMore.ContaCorrente.Domain.Enums;
-using BankMore.ContaCorrente.Infrastructure.Repositories;
+using BankMore.ContaCorrente.Domain.Interfaces;
+using BankMore.ContaCorrente.Domain.ValueObjects;
 
 namespace BankMore.ContaCorrente.Domain.Handlers;
 

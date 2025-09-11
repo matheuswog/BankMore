@@ -1,7 +1,7 @@
 using MediatR;
 using BankMore.ContaCorrente.Domain.Commands;
 using BankMore.ContaCorrente.Domain.Enums;
-using BankMore.ContaCorrente.Infrastructure.Repositories;
+using BankMore.ContaCorrente.Domain.Interfaces;
 using System.Security.Cryptography;
 using System.Text;
 

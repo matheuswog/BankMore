@@ -1,6 +1,7 @@
 using BankMore.ContaCorrente.Infrastructure.Data;
 using BankMore.ContaCorrente.Infrastructure.Repositories;
 using BankMore.ContaCorrente.Domain.Handlers;
+using Dapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -66,28 +67,13 @@ builder.Services.AddScoped<DatabaseContext>(provider =>
     new DatabaseContext(builder.Configuration.GetConnectionString("DefaultConnection") ?? ""));
 
 // Repositories
-builder.Services.AddScoped<IContaCorrenteRepository, ContaCorrenteRepository>();
-builder.Services.AddScoped<IMovimentoRepository, MovimentoRepository>();
+builder.Services.AddScoped<BankMore.ContaCorrente.Domain.Interfaces.IContaCorrenteRepository, ContaCorrenteRepository>();
+builder.Services.AddScoped<BankMore.ContaCorrente.Domain.Interfaces.IMovimentoRepository, MovimentoRepository>();
 
 // HttpClient
 builder.Services.AddHttpClient();
 
-// Kafka
-builder.Services.AddKafka(kafka => kafka
-    .UseConsoleLog()
-    .AddCluster(cluster => cluster
-        .WithBrokers(new[] { "localhost:9092" })
-        .AddProducer("default", producer => producer
-            .DefaultTopic("default-topic")
-            .AddMiddlewares(middlewares => middlewares
-                .AddSerializer<System.Text.Json.JsonSerializer>()
-            )
-        )
-    )
-);
-
-// Services
-builder.Services.AddScoped<BankMore.ContaCorrente.Infrastructure.Services.IKafkaService, BankMore.ContaCorrente.Infrastructure.Services.KafkaService>();
+// Kafka será implementado posteriormente
 
 var app = builder.Build();
 

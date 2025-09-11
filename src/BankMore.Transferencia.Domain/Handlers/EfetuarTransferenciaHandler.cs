@@ -1,8 +1,9 @@
 using MediatR;
 using BankMore.Transferencia.Domain.Commands;
 using BankMore.Transferencia.Domain.Entities;
-using BankMore.Transferencia.Infrastructure.Repositories;
+using BankMore.Transferencia.Domain.Interfaces;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 
 namespace BankMore.Transferencia.Domain.Handlers;
 
@@ -74,7 +75,7 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
             }
 
             // Registrar transferência
-            var transferencia = new Transferencia
+            var transferencia = new Entities.Transferencia
             {
                 IdentificacaoRequisicao = request.IdentificacaoRequisicao,
                 ContaOrigemId = request.ContaOrigemId,
@@ -164,19 +165,9 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
     {
         try
         {
-            var kafkaService = _httpClient.GetService<BankMore.Transferencia.Infrastructure.Services.IKafkaService>();
-            if (kafkaService != null)
-            {
-                var evento = new BankMore.Tarifa.Domain.ValueObjects.TransferenciaRealizadaEvent
-                {
-                    IdentificacaoRequisicao = request.IdentificacaoRequisicao,
-                    ContaCorrenteId = request.ContaOrigemId,
-                    Valor = request.Valor,
-                    DataTransferencia = DateTime.UtcNow
-                };
-
-                await kafkaService.PublishAsync("transferencias-realizadas", evento);
-            }
+            // Kafka service será injetado via DI
+            // Por enquanto, apenas log
+            Console.WriteLine($"Transferência realizada: {request.IdentificacaoRequisicao} - {request.Valor:C}");
         }
         catch (Exception ex)
         {

@@ -1,7 +1,8 @@
 using MediatR;
 using BankMore.Tarifa.Domain.Commands;
 using BankMore.Tarifa.Domain.Entities;
-using BankMore.Tarifa.Infrastructure.Repositories;
+using BankMore.Tarifa.Domain.Interfaces;
+using Microsoft.Extensions.Configuration;
 
 namespace BankMore.Tarifa.Domain.Handlers;
 
@@ -25,10 +26,10 @@ public class ProcessarTarifaHandler : IRequestHandler<ProcessarTarifaCommand, Re
         }
 
         // Obter valor da tarifa do appsettings
-        var valorTarifa = _configuration.GetValue<decimal>("Tarifa:ValorTransferencia", 2.00m);
+        var valorTarifa = 2.00m; // Valor fixo por enquanto
 
         // Criar tarifa
-        var tarifa = new Tarifa
+        var tarifa = new Domain.Entities.Tarifa
         {
             ContaCorrenteId = request.ContaCorrenteId,
             ValorTarifado = valorTarifa,
@@ -45,22 +46,13 @@ public class ProcessarTarifaHandler : IRequestHandler<ProcessarTarifaCommand, Re
         return Result<bool>.SucessoResultado(true);
     }
 
-    private async Task EnviarEventoTarifaRealizada(Tarifa tarifa)
+    private async Task EnviarEventoTarifaRealizada(Entities.Tarifa tarifa)
     {
         try
         {
-            var kafkaService = _configuration.GetService<BankMore.Tarifa.Infrastructure.Services.IKafkaService>();
-            if (kafkaService != null)
-            {
-                var evento = new TarifaRealizadaEvent
-                {
-                    ContaCorrenteId = tarifa.ContaCorrenteId,
-                    ValorTarifado = tarifa.ValorTarifado,
-                    DataTarifacao = tarifa.DataTarifacao
-                };
-
-                await kafkaService.PublishAsync("tarifas-realizadas", evento);
-            }
+            // Kafka service será injetado via DI
+            // Por enquanto, apenas log
+            Console.WriteLine($"Tarifa processada: Conta {tarifa.ContaCorrenteId} - {tarifa.ValorTarifado:C}");
         }
         catch (Exception ex)
         {

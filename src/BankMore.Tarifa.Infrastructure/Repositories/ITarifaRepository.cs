@@ -1,9 +1,7 @@
-using BankMore.Tarifa.Domain.Entities;
+using BankMore.Tarifa.Domain.Interfaces;
 
 namespace BankMore.Tarifa.Infrastructure.Repositories;
 
-public interface ITarifaRepository
+public interface ITarifaRepository : Domain.Interfaces.ITarifaRepository
 {
-    Task<Tarifa> InserirAsync(Tarifa tarifa);
-    Task<bool> ExisteIdentificacaoTransferenciaAsync(string identificacaoTransferencia);
 }

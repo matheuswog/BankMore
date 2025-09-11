@@ -1,10 +1,7 @@
-using BankMore.Transferencia.Domain.Entities;
+using BankMore.Transferencia.Domain.Interfaces;
 
 namespace BankMore.Transferencia.Infrastructure.Repositories;
 
-public interface ITransferenciaRepository
+public interface ITransferenciaRepository : Domain.Interfaces.ITransferenciaRepository
 {
-    Task<Transferencia> InserirAsync(Transferencia transferencia);
-    Task<bool> ExisteIdentificacaoRequisicaoAsync(string identificacaoRequisicao);
-    Task<Transferencia?> ObterPorIdAsync(int id);
 }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using MediatR;
 using BankMore.ContaCorrente.Domain.Commands;
 using BankMore.ContaCorrente.Domain.Queries;
+using BankMore.ContaCorrente.Domain.ValueObjects;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 

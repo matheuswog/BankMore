@@ -1,15 +1,7 @@
-using BankMore.ContaCorrente.Domain.Entities;
+using BankMore.ContaCorrente.Domain.Interfaces;
 
 namespace BankMore.ContaCorrente.Infrastructure.Repositories;
 
-public interface IContaCorrenteRepository
+public interface IContaCorrenteRepository : Domain.Interfaces.IContaCorrenteRepository
 {
-    Task<ContaCorrente?> ObterPorIdAsync(int id);
-    Task<ContaCorrente?> ObterPorCpfAsync(string cpf);
-    Task<ContaCorrente?> ObterPorNumeroContaAsync(string numeroConta);
-    Task<ContaCorrente?> ObterPorCpfOuNumeroContaAsync(string identificacao);
-    Task<ContaCorrente> InserirAsync(ContaCorrente contaCorrente);
-    Task AtualizarAsync(ContaCorrente contaCorrente);
-    Task<bool> ExisteCpfAsync(string cpf);
-    Task<bool> ExisteNumeroContaAsync(string numeroConta);
 }

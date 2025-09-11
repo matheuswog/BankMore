@@ -1,6 +1,7 @@
 using BankMore.Transferencia.Infrastructure.Data;
 using BankMore.Transferencia.Infrastructure.Repositories;
 using BankMore.Transferencia.Domain.Handlers;
+using Dapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -66,27 +67,12 @@ builder.Services.AddScoped<DatabaseContext>(provider =>
     new DatabaseContext(builder.Configuration.GetConnectionString("DefaultConnection") ?? ""));
 
 // Repositories
-builder.Services.AddScoped<ITransferenciaRepository, TransferenciaRepository>();
+builder.Services.AddScoped<BankMore.Transferencia.Domain.Interfaces.ITransferenciaRepository, TransferenciaRepository>();
 
 // HttpClient
 builder.Services.AddHttpClient();
 
-// Kafka
-builder.Services.AddKafka(kafka => kafka
-    .UseConsoleLog()
-    .AddCluster(cluster => cluster
-        .WithBrokers(new[] { "localhost:9092" })
-        .AddProducer("default", producer => producer
-            .DefaultTopic("default-topic")
-            .AddMiddlewares(middlewares => middlewares
-                .AddSerializer<System.Text.Json.JsonSerializer>()
-            )
-        )
-    )
-);
-
-// Services
-builder.Services.AddScoped<BankMore.Transferencia.Infrastructure.Services.IKafkaService, BankMore.Transferencia.Infrastructure.Services.KafkaService>();
+// Kafka será implementado posteriormente
 
 var app = builder.Build();
 

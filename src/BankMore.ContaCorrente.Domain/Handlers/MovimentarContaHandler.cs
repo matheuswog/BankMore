@@ -2,7 +2,7 @@ using MediatR;
 using BankMore.ContaCorrente.Domain.Commands;
 using BankMore.ContaCorrente.Domain.Entities;
 using BankMore.ContaCorrente.Domain.Enums;
-using BankMore.ContaCorrente.Infrastructure.Repositories;
+using BankMore.ContaCorrente.Domain.Interfaces;
 
 namespace BankMore.ContaCorrente.Domain.Handlers;
 

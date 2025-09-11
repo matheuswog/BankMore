@@ -1,9 +1,10 @@
 using MediatR;
 using BankMore.ContaCorrente.Domain.Commands;
 using BankMore.ContaCorrente.Domain.Enums;
-using BankMore.ContaCorrente.Infrastructure.Repositories;
+using BankMore.ContaCorrente.Domain.Interfaces;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;

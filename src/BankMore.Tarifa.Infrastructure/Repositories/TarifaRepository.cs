@@ -13,7 +13,7 @@ public class TarifaRepository : ITarifaRepository
         _context = context;
     }
 
-    public async Task<Tarifa> InserirAsync(Tarifa tarifa)
+    public async Task<Domain.Entities.Tarifa> InserirAsync(Domain.Entities.Tarifa tarifa)
     {
         const string sql = @"
             INSERT INTO Tarifa (ContaCorrenteId, ValorTarifado, DataTarifacao, Descricao, IdentificacaoTransferencia)
