@@ -1,0 +1,145 @@
+using BankMore.ContaCorrente.Infrastructure.Data;
+using BankMore.ContaCorrente.Infrastructure.Repositories;
+using BankMore.ContaCorrente.Domain.Handlers;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Microsoft.OpenApi.Models;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "BankMore ContaCorrente API", Version = "v1" });
+    
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+
+// JWT Authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? ""))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// MediatR
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CadastrarContaCorrenteHandler).Assembly));
+
+// Database
+builder.Services.AddScoped<DatabaseContext>(provider => 
+    new DatabaseContext(builder.Configuration.GetConnectionString("DefaultConnection") ?? ""));
+
+// Repositories
+builder.Services.AddScoped<IContaCorrenteRepository, ContaCorrenteRepository>();
+builder.Services.AddScoped<IMovimentoRepository, MovimentoRepository>();
+
+// HttpClient
+builder.Services.AddHttpClient();
+
+// Kafka
+builder.Services.AddKafka(kafka => kafka
+    .UseConsoleLog()
+    .AddCluster(cluster => cluster
+        .WithBrokers(new[] { "localhost:9092" })
+        .AddProducer("default", producer => producer
+            .DefaultTopic("default-topic")
+            .AddMiddlewares(middlewares => middlewares
+                .AddSerializer<System.Text.Json.JsonSerializer>()
+            )
+        )
+    )
+);
+
+// Services
+builder.Services.AddScoped<BankMore.ContaCorrente.Infrastructure.Services.IKafkaService, BankMore.ContaCorrente.Infrastructure.Services.KafkaService>();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+
+// Initialize database
+await InitializeDatabase(app);
+
+app.Run();
+
+static async Task InitializeDatabase(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+    
+    // Create tables
+    var createTablesSql = @"
+        CREATE TABLE IF NOT EXISTS ContaCorrente (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Cpf TEXT NOT NULL UNIQUE,
+            NomeTitular TEXT NOT NULL,
+            NumeroConta TEXT NOT NULL UNIQUE,
+            Senha TEXT NOT NULL,
+            Ativo INTEGER NOT NULL DEFAULT 1,
+            DataCriacao TEXT NOT NULL,
+            DataInativacao TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS Movimento (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            IdentificacaoRequisicao TEXT NOT NULL,
+            ContaCorrenteId INTEGER NOT NULL,
+            TipoMovimento TEXT NOT NULL,
+            Valor REAL NOT NULL,
+            DataMovimento TEXT NOT NULL,
+            Descricao TEXT,
+            FOREIGN KEY (ContaCorrenteId) REFERENCES ContaCorrente(Id)
+        );
+
+        CREATE INDEX IF NOT EXISTS IX_Movimento_ContaCorrenteId ON Movimento(ContaCorrenteId);
+        CREATE INDEX IF NOT EXISTS IX_Movimento_IdentificacaoRequisicao ON Movimento(IdentificacaoRequisicao);
+    ";
+
+    await context.Connection.ExecuteAsync(createTablesSql);
+}

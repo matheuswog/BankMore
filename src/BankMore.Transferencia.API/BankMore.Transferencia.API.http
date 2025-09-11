@@ -1,0 +1,6 @@
+@BankMore.Transferencia.API_HostAddress = http://localhost:5089
+
+GET {{BankMore.Transferencia.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
