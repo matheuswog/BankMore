@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using KafkaFlow;
+using BankMore.Transferencia.Domain.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,10 +68,32 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Proce
 builder.Services.AddScoped<DatabaseContext>(provider => 
     new DatabaseContext(builder.Configuration.GetConnectionString("DefaultConnection") ?? ""));
 
-// Repositories
 builder.Services.AddScoped<BankMore.Tarifa.Domain.Interfaces.ITarifaRepository, TarifaRepository>();
+builder.Services.AddScoped<BankMore.Tarifa.Domain.Interfaces.IIdempotenciaRepository, IdempotenciaRepository>();
+builder.Services.AddScoped<BankMore.Tarifa.Domain.Interfaces.ITarifaEventProducer, BankMore.Tarifa.Infrastructure.Producers.TarifaEventProducer>();
 
-// Kafka será implementado posteriormente
+builder.Services.AddKafka(kafka => kafka
+    .AddCluster(cluster => cluster
+        .WithBrokers(new[] { builder.Configuration["Kafka:BootstrapServers"] ?? "localhost:9092" })
+        .AddConsumer(consumer => consumer
+            .Topic(builder.Configuration["Kafka:Topics:TransferenciasRealizadas"] ?? "transferencias-realizadas")
+            .WithGroupId("tarifa-consumer-group")
+            .WithBufferSize(100)
+            .WithWorkersCount(10)
+            .AddMiddlewares(middlewares => middlewares
+                .AddDeserializer<BankMore.Tarifa.API.Serializers.SystemTextJsonDeserializer>()
+                .AddTypedHandlers(h => h.AddHandler<BankMore.Tarifa.API.Handlers.TransferenciaRealizadaHandler>())
+            )
+        )
+        .AddProducer<BankMore.Tarifa.Domain.Events.TarifaRealizadaEvent>(
+            producer => producer
+                .DefaultTopic(builder.Configuration["Kafka:Topics:TarifasRealizadas"] ?? "tarifas-realizadas")
+                .AddMiddlewares(m => m.AddSerializer<BankMore.Tarifa.API.Serializers.SystemTextJsonSerializer>(sp => new BankMore.Tarifa.API.Serializers.SystemTextJsonSerializer()))
+        )
+    )
+);
+
+builder.Services.AddMemoryCache();
 
 var app = builder.Build();
 
@@ -85,7 +109,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Initialize database
 await InitializeDatabase(app);
 
 app.Run();
@@ -95,19 +118,19 @@ static async Task InitializeDatabase(WebApplication app)
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
     
-    // Create tables
     var createTablesSql = @"
-        CREATE TABLE IF NOT EXISTS Tarifa (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ContaCorrenteId INTEGER NOT NULL,
-            ValorTarifado REAL NOT NULL,
-            DataTarifacao TEXT NOT NULL,
-            Descricao TEXT,
-            IdentificacaoTransferencia TEXT NOT NULL UNIQUE
+        CREATE TABLE IF NOT EXISTS tarifa (
+            idtarifa TEXT(37) PRIMARY KEY,
+            idcontacorrente TEXT(37) NOT NULL,
+            datamovimento TEXT(25) NOT NULL,
+            valor REAL NOT NULL
         );
 
-        CREATE INDEX IF NOT EXISTS IX_Tarifa_ContaCorrenteId ON Tarifa(ContaCorrenteId);
-        CREATE INDEX IF NOT EXISTS IX_Tarifa_IdentificacaoTransferencia ON Tarifa(IdentificacaoTransferencia);
+        CREATE TABLE IF NOT EXISTS idempotencia (
+            chave_idempotencia TEXT(37) PRIMARY KEY,
+            requisicao TEXT(1000),
+            resultado TEXT(1000)
+        );
     ";
 
     await context.Connection.ExecuteAsync(createTablesSql);

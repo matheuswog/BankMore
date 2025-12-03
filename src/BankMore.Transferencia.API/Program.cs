@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using KafkaFlow;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -68,11 +69,31 @@ builder.Services.AddScoped<DatabaseContext>(provider =>
 
 // Repositories
 builder.Services.AddScoped<BankMore.Transferencia.Domain.Interfaces.ITransferenciaRepository, TransferenciaRepository>();
+builder.Services.AddScoped<BankMore.Transferencia.Domain.Interfaces.IIdempotenciaRepository, IdempotenciaRepository>();
+builder.Services.AddScoped<BankMore.Transferencia.Domain.Interfaces.ITransferenciaEventProducer, BankMore.Transferencia.Infrastructure.Producers.TransferenciaEventProducer>();
+builder.Services.AddScoped<BankMore.Transferencia.Domain.Interfaces.IHttpClientService, BankMore.Transferencia.Infrastructure.Services.HttpClientService>();
 
-// HttpClient
-builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("ContaCorrenteApi", client =>
+{
+    var baseUrl = builder.Configuration["ContaCorrenteApi:BaseUrl"];
+    if (!string.IsNullOrEmpty(baseUrl))
+    {
+        client.BaseAddress = new Uri(baseUrl);
+    }
+});
 
-// Kafka será implementado posteriormente
+builder.Services.AddKafka(kafka => kafka
+    .AddCluster(cluster => cluster
+        .WithBrokers(new[] { builder.Configuration["Kafka:BootstrapServers"] ?? "localhost:9092" })
+        .AddProducer<BankMore.Transferencia.Domain.Events.TransferenciaRealizadaEvent>(
+            producer => producer
+                .DefaultTopic(builder.Configuration["Kafka:Topics:TransferenciasRealizadas"] ?? "transferencias-realizadas")
+                .AddMiddlewares(m => m.AddSerializer<BankMore.Transferencia.API.Serializers.SystemTextJsonSerializer>(sp => new BankMore.Transferencia.API.Serializers.SystemTextJsonSerializer()))
+        )
+    )
+);
+
+builder.Services.AddMemoryCache();
 
 var app = builder.Build();
 
@@ -88,7 +109,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Initialize database
 await InitializeDatabase(app);
 
 app.Run();
@@ -98,20 +118,20 @@ static async Task InitializeDatabase(WebApplication app)
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
     
-    // Create tables
     var createTablesSql = @"
-        CREATE TABLE IF NOT EXISTS Transferencia (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            IdentificacaoRequisicao TEXT NOT NULL UNIQUE,
-            ContaOrigemId INTEGER NOT NULL,
-            ContaDestinoId INTEGER NOT NULL,
-            Valor REAL NOT NULL,
-            DataTransferencia TEXT NOT NULL,
-            Descricao TEXT,
-            Processada INTEGER NOT NULL DEFAULT 0
+        CREATE TABLE IF NOT EXISTS transferencia (
+            idtransferencia TEXT(37) PRIMARY KEY,
+            idcontacorrente_origem TEXT(37) NOT NULL,
+            idcontacorrente_destino TEXT(37) NOT NULL,
+            datamovimento TEXT(25) NOT NULL,
+            valor REAL NOT NULL
         );
 
-        CREATE INDEX IF NOT EXISTS IX_Transferencia_IdentificacaoRequisicao ON Transferencia(IdentificacaoRequisicao);
+        CREATE TABLE IF NOT EXISTS idempotencia (
+            chave_idempotencia TEXT(37) PRIMARY KEY,
+            requisicao TEXT(1000),
+            resultado TEXT(1000)
+        );
     ";
 
     await context.Connection.ExecuteAsync(createTablesSql);

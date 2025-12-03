@@ -6,8 +6,8 @@ namespace BankMore.ContaCorrente.Domain.Commands;
 public class MovimentarContaCommand : IRequest<Result<bool>>
 {
     public string IdentificacaoRequisicao { get; set; } = string.Empty;
-    public int ContaCorrenteId { get; set; }
-    public int? ContaCorrenteDestinoId { get; set; }
+    public string IdContaCorrente { get; set; } = string.Empty;
+    public int? NumeroContaDestino { get; set; }
     public decimal Valor { get; set; }
-    public string TipoMovimento { get; set; } = string.Empty; // C = Crédito, D = Débito
+    public string TipoMovimento { get; set; } = string.Empty;
 }

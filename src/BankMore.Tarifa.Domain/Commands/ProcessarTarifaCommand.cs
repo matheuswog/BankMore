@@ -6,7 +6,7 @@ namespace BankMore.Tarifa.Domain.Commands;
 public class ProcessarTarifaCommand : IRequest<Result<bool>>
 {
     public string IdentificacaoRequisicao { get; set; } = string.Empty;
-    public int ContaCorrenteId { get; set; }
+    public string IdContaCorrente { get; set; } = string.Empty;
     public decimal ValorTransferencia { get; set; }
 }
 

@@ -3,6 +3,7 @@ using MediatR;
 using BankMore.ContaCorrente.Domain.Commands;
 using BankMore.ContaCorrente.Domain.Queries;
 using BankMore.ContaCorrente.Domain.ValueObjects;
+using BankMore.ContaCorrente.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
@@ -13,10 +14,12 @@ namespace BankMore.ContaCorrente.API.Controllers;
 public class ContaCorrenteController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IContaCorrenteRepository _contaRepository;
 
-    public ContaCorrenteController(IMediator mediator)
+    public ContaCorrenteController(IMediator mediator, IContaCorrenteRepository contaRepository)
     {
         _mediator = mediator;
+        _contaRepository = contaRepository;
     }
 
     /// <summary>
@@ -84,11 +87,15 @@ public class ContaCorrenteController : ControllerBase
     [ProducesResponseType(403)]
     public async Task<IActionResult> Inativar([FromBody] InativarContaRequest request)
     {
-        var contaId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var idContaCorrente = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(idContaCorrente))
+        {
+            return Forbid();
+        }
 
         var command = new InativarContaCommand
         {
-            ContaCorrenteId = contaId,
+            IdContaCorrente = idContaCorrente,
             Senha = request.Senha
         };
 
@@ -114,13 +121,33 @@ public class ContaCorrenteController : ControllerBase
     [ProducesResponseType(403)]
     public async Task<IActionResult> Movimentar([FromBody] MovimentarContaRequest request)
     {
-        var contaId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var idContaCorrente = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(idContaCorrente))
+        {
+            return Forbid();
+        }
+
+        var numeroContaLogado = User.FindFirst("NumeroConta")?.Value;
+        var idContaParaMovimentar = idContaCorrente;
+        
+        if (request.NumeroConta.HasValue)
+        {
+            var contaPorNumero = await ObterIdContaPorNumero(request.NumeroConta.Value);
+            if (contaPorNumero != null)
+            {
+                if (numeroContaLogado != request.NumeroConta.Value.ToString() && request.TipoMovimento != "C")
+                {
+                    return BadRequest(new ErroResponse("Apenas o tipo crédito pode ser aceito caso o número da conta seja diferente do usuário logado", "INVALID_TYPE"));
+                }
+                idContaParaMovimentar = contaPorNumero;
+            }
+        }
 
         var command = new MovimentarContaCommand
         {
             IdentificacaoRequisicao = request.IdentificacaoRequisicao,
-            ContaCorrenteId = contaId,
-            ContaCorrenteDestinoId = request.ContaCorrenteDestinoId,
+            IdContaCorrente = idContaParaMovimentar,
+            NumeroContaDestino = request.NumeroContaDestino,
             Valor = request.Valor,
             TipoMovimento = request.TipoMovimento
         };
@@ -146,11 +173,15 @@ public class ContaCorrenteController : ControllerBase
     [ProducesResponseType(403)]
     public async Task<IActionResult> ConsultarSaldo()
     {
-        var contaId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var idContaCorrente = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(idContaCorrente))
+        {
+            return Forbid();
+        }
 
         var query = new ConsultarSaldoQuery
         {
-            ContaCorrenteId = contaId
+            IdContaCorrente = idContaCorrente
         };
 
         var result = await _mediator.Send(query);
@@ -166,18 +197,23 @@ public class ContaCorrenteController : ControllerBase
     /// <summary>
     /// Valida se uma conta existe e está ativa (endpoint interno)
     /// </summary>
-    /// <param name="contaId">ID da conta</param>
+    /// <param name="numeroConta">Número da conta</param>
     /// <returns>Status da validação</returns>
-    [HttpGet("validar/{contaId}")]
+    [HttpGet("validar/{numeroConta}")]
     [Authorize]
     [ProducesResponseType(200)]
     [ProducesResponseType(typeof(ErroResponse), 400)]
-    public async Task<IActionResult> ValidarConta(int contaId)
+    public async Task<IActionResult> ValidarConta(int numeroConta)
     {
         var query = new ConsultarSaldoQuery
         {
-            ContaCorrenteId = contaId
+            IdContaCorrente = (await ObterIdContaPorNumero(numeroConta)) ?? ""
         };
+
+        if (string.IsNullOrEmpty(query.IdContaCorrente))
+        {
+            return BadRequest(new ErroResponse("Conta não encontrada", "INVALID_ACCOUNT"));
+        }
 
         var result = await _mediator.Send(query);
 
@@ -187,6 +223,32 @@ public class ContaCorrenteController : ControllerBase
         }
 
         return BadRequest(result.Erro);
+    }
+
+    /// <summary>
+    /// Obtém o ID da conta corrente por número (endpoint interno)
+    /// </summary>
+    /// <param name="numeroConta">Número da conta</param>
+    /// <returns>ID da conta corrente</returns>
+    [HttpGet("obter-id/{numeroConta}")]
+    [Authorize]
+    [ProducesResponseType(typeof(string), 200)]
+    [ProducesResponseType(typeof(ErroResponse), 400)]
+    public async Task<IActionResult> ObterIdPorNumero(int numeroConta)
+    {
+        var idConta = await ObterIdContaPorNumero(numeroConta);
+        if (string.IsNullOrEmpty(idConta))
+        {
+            return BadRequest(new ErroResponse("Conta não encontrada", "INVALID_ACCOUNT"));
+        }
+
+        return Ok(new { IdContaCorrente = idConta });
+    }
+
+    private async Task<string?> ObterIdContaPorNumero(int numeroConta)
+    {
+        var conta = await _contaRepository.ObterPorNumeroContaAsync(numeroConta);
+        return conta?.IdContaCorrente;
     }
 }
 
@@ -212,7 +274,8 @@ public class InativarContaRequest
 public class MovimentarContaRequest
 {
     public string IdentificacaoRequisicao { get; set; } = string.Empty;
-    public int? ContaCorrenteDestinoId { get; set; }
+    public int? NumeroConta { get; set; }
+    public int? NumeroContaDestino { get; set; }
     public decimal Valor { get; set; }
     public string TipoMovimento { get; set; } = string.Empty;
 }

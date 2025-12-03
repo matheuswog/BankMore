@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using KafkaFlow;
+using BankMore.Tarifa.Domain.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -62,12 +64,29 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Cadas
 builder.Services.AddScoped<DatabaseContext>(provider => 
     new DatabaseContext(builder.Configuration.GetConnectionString("DefaultConnection") ?? ""));
 
-builder.Services.AddScoped<BankMore.ContaCorrente.Domain.Interfaces.IContaCorrenteRepository, ContaCorrenteRepository>();
-builder.Services.AddScoped<BankMore.ContaCorrente.Domain.Interfaces.IMovimentoRepository, MovimentoRepository>();
+        builder.Services.AddScoped<BankMore.ContaCorrente.Domain.Interfaces.IContaCorrenteRepository, ContaCorrenteRepository>();
+        builder.Services.AddScoped<BankMore.ContaCorrente.Domain.Interfaces.IMovimentoRepository, MovimentoRepository>();
+        builder.Services.AddScoped<BankMore.ContaCorrente.Domain.Interfaces.IIdempotenciaRepository, IdempotenciaRepository>();
 
 builder.Services.AddHttpClient();
 
-// TODO: Implementar Kafka posteriormente
+builder.Services.AddKafka(kafka => kafka
+    .AddCluster(cluster => cluster
+        .WithBrokers(new[] { builder.Configuration["Kafka:BootstrapServers"] ?? "localhost:9092" })
+        .AddConsumer(consumer => consumer
+            .Topic(builder.Configuration["Kafka:Topics:TarifasRealizadas"] ?? "tarifas-realizadas")
+            .WithGroupId("conta-corrente-consumer-group")
+            .WithBufferSize(100)
+            .WithWorkersCount(10)
+            .AddMiddlewares(middlewares => middlewares
+                .AddDeserializer<BankMore.ContaCorrente.API.Serializers.SystemTextJsonDeserializer>()
+                .AddTypedHandlers(h => h.AddHandler<BankMore.ContaCorrente.API.Handlers.TarifaRealizadaHandler>())
+            )
+        )
+    )
+);
+
+builder.Services.AddMemoryCache();
 
 var app = builder.Build();
 
@@ -92,30 +111,34 @@ static async Task InitializeDatabase(WebApplication app)
     var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
     
     var createTablesSql = @"
-        CREATE TABLE IF NOT EXISTS ContaCorrente (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Cpf TEXT NOT NULL UNIQUE,
-            NomeTitular TEXT NOT NULL,
-            NumeroConta TEXT NOT NULL UNIQUE,
-            Senha TEXT NOT NULL,
-            Ativo INTEGER NOT NULL DEFAULT 1,
-            DataCriacao TEXT NOT NULL,
-            DataInativacao TEXT
+        CREATE TABLE IF NOT EXISTS contacorrente (
+            idcontacorrente TEXT(37) PRIMARY KEY,
+            numero INTEGER(10) NOT NULL UNIQUE,
+            nome TEXT(100) NOT NULL,
+            cpf TEXT(11),
+            ativo INTEGER(1) NOT NULL DEFAULT 0,
+            senha TEXT(100) NOT NULL,
+            salt TEXT(100) NOT NULL,
+            CHECK (ativo IN (0,1))
         );
 
-        CREATE TABLE IF NOT EXISTS Movimento (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            IdentificacaoRequisicao TEXT NOT NULL,
-            ContaCorrenteId INTEGER NOT NULL,
-            TipoMovimento TEXT NOT NULL,
-            Valor REAL NOT NULL,
-            DataMovimento TEXT NOT NULL,
-            Descricao TEXT,
-            FOREIGN KEY (ContaCorrenteId) REFERENCES ContaCorrente(Id)
+        CREATE TABLE IF NOT EXISTS movimento (
+            idmovimento TEXT(37) PRIMARY KEY,
+            idcontacorrente TEXT(37) NOT NULL,
+            datamovimento TEXT(25) NOT NULL,
+            tipomovimento TEXT(1) NOT NULL,
+            valor REAL NOT NULL,
+            CHECK (tipomovimento IN ('C','D')),
+            FOREIGN KEY(idcontacorrente) REFERENCES contacorrente(idcontacorrente)
         );
 
-        CREATE INDEX IF NOT EXISTS IX_Movimento_ContaCorrenteId ON Movimento(ContaCorrenteId);
-        CREATE INDEX IF NOT EXISTS IX_Movimento_IdentificacaoRequisicao ON Movimento(IdentificacaoRequisicao);
+        CREATE TABLE IF NOT EXISTS idempotencia (
+            chave_idempotencia TEXT(37) PRIMARY KEY,
+            requisicao TEXT(1000),
+            resultado TEXT(1000)
+        );
+
+        CREATE INDEX IF NOT EXISTS IX_movimento_idcontacorrente ON movimento(idcontacorrente);
     ";
 
     await context.Connection.ExecuteAsync(createTablesSql);

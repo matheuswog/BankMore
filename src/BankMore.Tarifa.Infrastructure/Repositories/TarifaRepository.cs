@@ -16,19 +16,10 @@ public class TarifaRepository : ITarifaRepository
     public async Task<Domain.Entities.Tarifa> InserirAsync(Domain.Entities.Tarifa tarifa)
     {
         const string sql = @"
-            INSERT INTO Tarifa (ContaCorrenteId, ValorTarifado, DataTarifacao, Descricao, IdentificacaoTransferencia)
-            VALUES (@ContaCorrenteId, @ValorTarifado, @DataTarifacao, @Descricao, @IdentificacaoTransferencia);
-            SELECT last_insert_rowid();";
+            INSERT INTO tarifa (idtarifa, idcontacorrente, datamovimento, valor)
+            VALUES (@IdTarifa, @IdContaCorrente, @DataMovimento, @Valor)";
 
-        var id = await _context.Connection.QuerySingleAsync<int>(sql, tarifa);
-        tarifa.Id = id;
+        await _context.Connection.ExecuteAsync(sql, tarifa);
         return tarifa;
-    }
-
-    public async Task<bool> ExisteIdentificacaoTransferenciaAsync(string identificacaoTransferencia)
-    {
-        const string sql = "SELECT COUNT(1) FROM Tarifa WHERE IdentificacaoTransferencia = @IdentificacaoTransferencia";
-        var count = await _context.Connection.QuerySingleAsync<int>(sql, new { IdentificacaoTransferencia = identificacaoTransferencia });
-        return count > 0;
     }
 }

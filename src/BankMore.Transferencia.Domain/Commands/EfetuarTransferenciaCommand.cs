@@ -6,9 +6,10 @@ namespace BankMore.Transferencia.Domain.Commands;
 public class EfetuarTransferenciaCommand : IRequest<Result<bool>>
 {
     public string IdentificacaoRequisicao { get; set; } = string.Empty;
-    public int ContaOrigemId { get; set; }
-    public int ContaDestinoId { get; set; }
+    public string IdContaCorrenteOrigem { get; set; } = string.Empty;
+    public int NumeroContaDestino { get; set; }
     public decimal Valor { get; set; }
+    public string? TokenJwt { get; set; }
 }
 
 public class Result<T>

@@ -34,7 +34,7 @@ public class CadastrarContaCorrenteHandlerTests
 
         _mockRepository.Setup(x => x.ExisteCpfAsync(It.IsAny<string>()))
             .ReturnsAsync(false);
-        _mockRepository.Setup(x => x.ExisteNumeroContaAsync(It.IsAny<string>()))
+        _mockRepository.Setup(x => x.ExisteNumeroContaAsync(It.IsAny<int>()))
             .ReturnsAsync(false);
 
         // Act

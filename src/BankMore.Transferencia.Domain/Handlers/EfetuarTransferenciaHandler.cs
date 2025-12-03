@@ -2,30 +2,38 @@ using MediatR;
 using BankMore.Transferencia.Domain.Commands;
 using BankMore.Transferencia.Domain.Entities;
 using BankMore.Transferencia.Domain.Interfaces;
+using BankMore.Transferencia.Domain.Events;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using System.Net.Http;
 
 namespace BankMore.Transferencia.Domain.Handlers;
 
 public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaCommand, Result<bool>>
 {
     private readonly ITransferenciaRepository _transferenciaRepository;
-    private readonly HttpClient _httpClient;
+    private readonly IIdempotenciaRepository _idempotenciaRepository;
+    private readonly IHttpClientService _httpClientService;
     private readonly IConfiguration _configuration;
+    private readonly ITransferenciaEventProducer _kafkaProducer;
 
     public EfetuarTransferenciaHandler(
-        ITransferenciaRepository transferenciaRepository, 
-        HttpClient httpClient,
-        IConfiguration configuration)
+        ITransferenciaRepository transferenciaRepository,
+        IIdempotenciaRepository idempotenciaRepository,
+        IHttpClientService httpClientService,
+        IConfiguration configuration,
+        ITransferenciaEventProducer kafkaProducer)
     {
         _transferenciaRepository = transferenciaRepository;
-        _httpClient = httpClient;
+        _idempotenciaRepository = idempotenciaRepository;
+        _httpClientService = httpClientService;
         _configuration = configuration;
+        _kafkaProducer = kafkaProducer;
     }
 
     public async Task<Result<bool>> Handle(EfetuarTransferenciaCommand request, CancellationToken cancellationToken)
     {
-        if (await _transferenciaRepository.ExisteIdentificacaoRequisicaoAsync(request.IdentificacaoRequisicao))
+        if (await _idempotenciaRepository.ExisteChaveAsync(request.IdentificacaoRequisicao))
         {
             return Result<bool>.SucessoResultado(true);
         }
@@ -35,21 +43,32 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
             return Result<bool>.ErroResultado("Valor deve ser maior que zero", "INVALID_VALUE");
         }
 
-        var contaOrigemValida = await ValidarConta(request.ContaOrigemId);
+        var contaOrigemValida = await ValidarContaPorId(request.IdContaCorrenteOrigem);
         if (!contaOrigemValida.Sucesso)
         {
             return Result<bool>.ErroResultado(contaOrigemValida.Erro?.Mensagem ?? "Erro ao validar conta origem", 
                 contaOrigemValida.Erro?.TipoFalha ?? "INVALID_ACCOUNT");
         }
 
-        var contaDestinoValida = await ValidarConta(request.ContaDestinoId);
+        var contaDestinoValida = await ValidarContaPorNumero(request.NumeroContaDestino, request.TokenJwt);
         if (!contaDestinoValida.Sucesso)
         {
             return Result<bool>.ErroResultado(contaDestinoValida.Erro?.Mensagem ?? "Erro ao validar conta destino", 
                 contaDestinoValida.Erro?.TipoFalha ?? "INVALID_ACCOUNT");
         }
 
-        var debitoResult = await RealizarMovimentacao(request.ContaOrigemId, request.Valor, "D", request.IdentificacaoRequisicao);
+        var idContaDestino = await ObterIdContaPorNumero(request.NumeroContaDestino, request.TokenJwt);
+        if (string.IsNullOrEmpty(idContaDestino))
+        {
+            return Result<bool>.ErroResultado("Conta destino não encontrada", "INVALID_ACCOUNT");
+        }
+
+        if (idContaDestino == request.IdContaCorrenteOrigem)
+        {
+            return Result<bool>.ErroResultado("Não é possível transferir para a mesma conta", "INVALID_ACCOUNT");
+        }
+
+        var debitoResult = await RealizarMovimentacao(request.IdContaCorrenteOrigem, request.Valor, "D", request.IdentificacaoRequisicao, request.TokenJwt);
         if (!debitoResult.Sucesso)
         {
             return Result<bool>.ErroResultado(debitoResult.Erro?.Mensagem ?? "Erro ao realizar débito", 
@@ -58,11 +77,10 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
 
         try
         {
-            var creditoResult = await RealizarMovimentacao(request.ContaDestinoId, request.Valor, "C", request.IdentificacaoRequisicao);
+            var creditoResult = await RealizarMovimentacao(idContaDestino, request.Valor, "C", request.IdentificacaoRequisicao, request.TokenJwt, request.NumeroContaDestino);
             if (!creditoResult.Sucesso)
             {
-                // Estorno na conta origem
-                await RealizarMovimentacao(request.ContaOrigemId, request.Valor, "C", $"{request.IdentificacaoRequisicao}_ESTORNO");
+                await RealizarMovimentacao(request.IdContaCorrenteOrigem, request.Valor, "C", $"{request.IdentificacaoRequisicao}_ESTORNO", request.TokenJwt);
                 
                 return Result<bool>.ErroResultado(creditoResult.Erro?.Mensagem ?? "Erro ao realizar crédito", 
                     creditoResult.Erro?.TipoFalha ?? "TRANSFER_ERROR");
@@ -70,37 +88,47 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
 
             var transferencia = new Entities.Transferencia
             {
-                IdentificacaoRequisicao = request.IdentificacaoRequisicao,
-                ContaOrigemId = request.ContaOrigemId,
-                ContaDestinoId = request.ContaDestinoId,
+                IdTransferencia = Guid.NewGuid().ToString(),
+                IdContaCorrenteOrigem = request.IdContaCorrenteOrigem,
+                IdContaCorrenteDestino = idContaDestino,
                 Valor = request.Valor,
-                DataTransferencia = DateTime.UtcNow,
-                Descricao = $"Transferência de {request.Valor:C}",
-                Processada = true
+                DataMovimento = DateTime.UtcNow.ToString("dd/MM/yyyy")
             };
 
             await _transferenciaRepository.InserirAsync(transferencia);
 
-            // Enviar evento para Kafka (opcional)
-            await EnviarEventoTransferenciaRealizada(request);
+            var requisicao = JsonSerializer.Serialize(request);
+            var resultado = JsonSerializer.Serialize(transferencia);
+            await _idempotenciaRepository.SalvarAsync(request.IdentificacaoRequisicao, requisicao, resultado);
+
+            await _kafkaProducer.ProduzirEventoAsync(new TransferenciaRealizadaEvent
+            {
+                IdentificacaoRequisicao = request.IdentificacaoRequisicao,
+                IdContaCorrenteOrigem = request.IdContaCorrenteOrigem,
+                ValorTransferencia = request.Valor,
+                DataHora = DateTime.UtcNow
+            });
 
             return Result<bool>.SucessoResultado(true);
         }
         catch (Exception ex)
         {
-            // Estorno em caso de erro
-            await RealizarMovimentacao(request.ContaOrigemId, request.Valor, "C", $"{request.IdentificacaoRequisicao}_ESTORNO");
+            await RealizarMovimentacao(request.IdContaCorrenteOrigem, request.Valor, "C", $"{request.IdentificacaoRequisicao}_ESTORNO", request.TokenJwt);
             
             return Result<bool>.ErroResultado($"Erro interno: {ex.Message}", "INTERNAL_ERROR");
         }
     }
 
-    private async Task<Result<bool>> ValidarConta(int contaId)
+    private async Task<Result<bool>> ValidarContaPorId(string idContaCorrente)
+    {
+        return Result<bool>.SucessoResultado(true);
+    }
+
+    private async Task<Result<bool>> ValidarContaPorNumero(int numeroConta, string? token = null)
     {
         try
         {
-            var baseUrl = _configuration["ContaCorrenteApi:BaseUrl"];
-            var response = await _httpClient.GetAsync($"{baseUrl}/api/conta-corrente/validar/{contaId}");
+            var response = await _httpClientService.GetAsync($"/api/conta-corrente/validar/{numeroConta}", token);
             
             if (response.IsSuccessStatusCode)
             {
@@ -119,23 +147,44 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
         }
     }
 
-    private async Task<Result<bool>> RealizarMovimentacao(int contaId, decimal valor, string tipo, string identificacao)
+    private async Task<string?> ObterIdContaPorNumero(int numeroConta, string? token = null)
     {
         try
         {
-            var baseUrl = _configuration["ContaCorrenteApi:BaseUrl"];
-            var request = new
+            var response = await _httpClientService.GetAsync($"/api/conta-corrente/obter-id/{numeroConta}", token);
+            
+            if (response.IsSuccessStatusCode)
             {
-                IdentificacaoRequisicao = identificacao,
-                ContaCorrenteId = contaId,
+                var content = await response.Content.ReadAsStringAsync();
+                var result = JsonSerializer.Deserialize<JsonElement>(content);
+                if (result.TryGetProperty("idContaCorrente", out var idProperty))
+                {
+                    return idProperty.GetString();
+                }
+            }
+            
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<Result<bool>> RealizarMovimentacao(string idContaCorrente, decimal valor, string tipo, string identificacaoRequisicao, string? token = null, int? numeroConta = null)
+    {
+        try
+        {
+            var requestBody = new
+            {
+                IdentificacaoRequisicao = identificacaoRequisicao,
+                NumeroConta = numeroConta,
+                NumeroContaDestino = numeroConta,
                 Valor = valor,
                 TipoMovimento = tipo
             };
 
-            var json = JsonSerializer.Serialize(request);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-
-            var response = await _httpClient.PostAsync($"{baseUrl}/api/conta-corrente/movimentar", content);
+            var response = await _httpClientService.PostAsync("/api/conta-corrente/movimentar", requestBody, token);
             
             if (response.IsSuccessStatusCode)
             {
@@ -151,21 +200,6 @@ public class EfetuarTransferenciaHandler : IRequestHandler<EfetuarTransferenciaC
         catch (Exception ex)
         {
             return Result<bool>.ErroResultado($"Erro ao realizar movimentação: {ex.Message}", "MOVEMENT_ERROR");
-        }
-    }
-
-    private async Task EnviarEventoTransferenciaRealizada(EfetuarTransferenciaCommand request)
-    {
-        try
-        {
-            // Kafka service será injetado via DI
-            // Por enquanto, apenas log
-            Console.WriteLine($"Transferência realizada: {request.IdentificacaoRequisicao} - {request.Valor:C}");
-        }
-        catch (Exception ex)
-        {
-            // Log do erro, mas não falha a transferência
-            Console.WriteLine($"Erro ao enviar evento para Kafka: {ex.Message}");
         }
     }
 }

@@ -5,6 +5,6 @@ namespace BankMore.ContaCorrente.Domain.Commands;
 
 public class InativarContaCommand : IRequest<Result<bool>>
 {
-    public int ContaCorrenteId { get; set; }
+    public string IdContaCorrente { get; set; } = string.Empty;
     public string Senha { get; set; } = string.Empty;
 }

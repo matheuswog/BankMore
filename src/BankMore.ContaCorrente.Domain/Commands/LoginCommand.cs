@@ -5,13 +5,13 @@ namespace BankMore.ContaCorrente.Domain.Commands;
 
 public class LoginCommand : IRequest<Result<LoginResponse>>
 {
-    public string Identificacao { get; set; } = string.Empty; // CPF ou número da conta
+    public string Identificacao { get; set; } = string.Empty;
     public string Senha { get; set; } = string.Empty;
 }
 
 public class LoginResponse
 {
     public string Token { get; set; } = string.Empty;
-    public int ContaCorrenteId { get; set; }
+    public string IdContaCorrente { get; set; } = string.Empty;
     public string NumeroConta { get; set; } = string.Empty;
 }

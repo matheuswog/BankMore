@@ -16,43 +16,37 @@ public class MovimentoRepository : IMovimentoRepository
     public async Task<Movimento> InserirAsync(Movimento movimento)
     {
         const string sql = @"
-            INSERT INTO Movimento (IdentificacaoRequisicao, ContaCorrenteId, TipoMovimento, Valor, DataMovimento, Descricao)
-            VALUES (@IdentificacaoRequisicao, @ContaCorrenteId, @TipoMovimento, @Valor, @DataMovimento, @Descricao);
-            SELECT last_insert_rowid();";
+            INSERT INTO movimento (idmovimento, idcontacorrente, datamovimento, tipomovimento, valor)
+            VALUES (@IdMovimento, @IdContaCorrente, @DataMovimento, @TipoMovimento, @Valor)";
 
-        var id = await _context.Connection.QuerySingleAsync<int>(sql, movimento);
-        movimento.Id = id;
+        await _context.Connection.ExecuteAsync(sql, movimento);
         return movimento;
     }
 
-    public async Task<decimal> CalcularSaldoAsync(int contaCorrenteId)
+    public async Task<decimal> CalcularSaldoAsync(string idContaCorrente)
     {
         const string sql = @"
             SELECT 
-                COALESCE(SUM(CASE WHEN TipoMovimento = 'C' THEN Valor ELSE 0 END), 0) -
-                COALESCE(SUM(CASE WHEN TipoMovimento = 'D' THEN Valor ELSE 0 END), 0) as Saldo
-            FROM Movimento 
-            WHERE ContaCorrenteId = @ContaCorrenteId";
+                COALESCE(SUM(CASE WHEN tipomovimento = 'C' THEN valor ELSE 0 END), 0) -
+                COALESCE(SUM(CASE WHEN tipomovimento = 'D' THEN valor ELSE 0 END), 0) as Saldo
+            FROM movimento 
+            WHERE idcontacorrente = @IdContaCorrente";
 
-        return await _context.Connection.QuerySingleAsync<decimal>(sql, new { ContaCorrenteId = contaCorrenteId });
+        return await _context.Connection.QuerySingleAsync<decimal>(sql, new { IdContaCorrente = idContaCorrente });
     }
 
-    public async Task<bool> ExisteIdentificacaoRequisicaoAsync(string identificacaoRequisicao)
-    {
-        const string sql = "SELECT COUNT(1) FROM Movimento WHERE IdentificacaoRequisicao = @IdentificacaoRequisicao";
-        var count = await _context.Connection.QuerySingleAsync<int>(sql, new { IdentificacaoRequisicao = identificacaoRequisicao });
-        return count > 0;
-    }
 
-    public async Task<List<Movimento>> ObterMovimentosPorContaAsync(int contaCorrenteId)
+    public async Task<List<Movimento>> ObterMovimentosPorContaAsync(string idContaCorrente)
     {
         const string sql = @"
-            SELECT Id, IdentificacaoRequisicao, ContaCorrenteId, TipoMovimento, Valor, DataMovimento, Descricao
-            FROM Movimento 
-            WHERE ContaCorrenteId = @ContaCorrenteId
-            ORDER BY DataMovimento DESC";
+            SELECT idmovimento AS IdMovimento, idcontacorrente AS IdContaCorrente, 
+                   datamovimento AS DataMovimento, tipomovimento AS TipoMovimento, 
+                   valor AS Valor
+            FROM movimento 
+            WHERE idcontacorrente = @IdContaCorrente
+            ORDER BY datamovimento DESC";
 
-        var movimentos = await _context.Connection.QueryAsync<Movimento>(sql, new { ContaCorrenteId = contaCorrenteId });
+        var movimentos = await _context.Connection.QueryAsync<Movimento>(sql, new { IdContaCorrente = idContaCorrente });
         return movimentos.ToList();
     }
 }

@@ -1,5 +1,4 @@
 using Dapper;
-using Microsoft.Data.Sqlite;
 using BankMore.ContaCorrente.Domain.Entities;
 using BankMore.ContaCorrente.Infrastructure.Data;
 
@@ -14,80 +13,78 @@ public class ContaCorrenteRepository : IContaCorrenteRepository
         _context = context;
     }
 
-    public async Task<Domain.Entities.ContaCorrente?> ObterPorIdAsync(int id)
+    public async Task<Domain.Entities.ContaCorrente?> ObterPorIdContaCorrenteAsync(string idContaCorrente)
     {
         const string sql = @"
-            SELECT Id, Cpf, NomeTitular, NumeroConta, Senha, Ativo, DataCriacao, DataInativacao
-            FROM ContaCorrente 
-            WHERE Id = @Id";
+            SELECT idcontacorrente AS IdContaCorrente, numero AS Numero, nome AS Nome, cpf AS Cpf,
+                   ativo AS Ativo, senha AS Senha, salt AS Salt
+            FROM contacorrente 
+            WHERE idcontacorrente = @IdContaCorrente";
 
-        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.ContaCorrente>(sql, new { Id = id });
+        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.ContaCorrente>(
+            sql, new { IdContaCorrente = idContaCorrente });
     }
 
-    public async Task<Domain.Entities.ContaCorrente?> ObterPorCpfAsync(string cpf)
+    public async Task<Domain.Entities.ContaCorrente?> ObterPorNumeroContaAsync(int numero)
     {
         const string sql = @"
-            SELECT Id, Cpf, NomeTitular, NumeroConta, Senha, Ativo, DataCriacao, DataInativacao
-            FROM ContaCorrente 
-            WHERE Cpf = @Cpf";
+            SELECT idcontacorrente AS IdContaCorrente, numero AS Numero, nome AS Nome, cpf AS Cpf,
+                   ativo AS Ativo, senha AS Senha, salt AS Salt
+            FROM contacorrente 
+            WHERE numero = @Numero";
 
-        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.ContaCorrente>(sql, new { Cpf = cpf });
-    }
-
-    public async Task<Domain.Entities.ContaCorrente?> ObterPorNumeroContaAsync(string numeroConta)
-    {
-        const string sql = @"
-            SELECT Id, Cpf, NomeTitular, NumeroConta, Senha, Ativo, DataCriacao, DataInativacao
-            FROM ContaCorrente 
-            WHERE NumeroConta = @NumeroConta";
-
-        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.ContaCorrente>(sql, new { NumeroConta = numeroConta });
+        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.ContaCorrente>(
+            sql, new { Numero = numero });
     }
 
     public async Task<Domain.Entities.ContaCorrente?> ObterPorCpfOuNumeroContaAsync(string identificacao)
     {
+        if (int.TryParse(identificacao, out var numero))
+        {
+            return await ObterPorNumeroContaAsync(numero);
+        }
+        
         const string sql = @"
-            SELECT Id, Cpf, NomeTitular, NumeroConta, Senha, Ativo, DataCriacao, DataInativacao
-            FROM ContaCorrente 
-            WHERE Cpf = @Identificacao OR NumeroConta = @Identificacao";
+            SELECT idcontacorrente AS IdContaCorrente, numero AS Numero, nome AS Nome, cpf AS Cpf,
+                   ativo AS Ativo, senha AS Senha, salt AS Salt
+            FROM contacorrente 
+            WHERE cpf = @Identificacao";
 
-        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.ContaCorrente>(sql, new { Identificacao = identificacao });
+        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.ContaCorrente>(
+            sql, new { Identificacao = identificacao });
     }
 
     public async Task<Domain.Entities.ContaCorrente> InserirAsync(Domain.Entities.ContaCorrente contaCorrente)
     {
         const string sql = @"
-            INSERT INTO ContaCorrente (Cpf, NomeTitular, NumeroConta, Senha, Ativo, DataCriacao, DataInativacao)
-            VALUES (@Cpf, @NomeTitular, @NumeroConta, @Senha, @Ativo, @DataCriacao, @DataInativacao);
-            SELECT last_insert_rowid();";
+            INSERT INTO contacorrente (idcontacorrente, numero, nome, cpf, ativo, senha, salt)
+            VALUES (@IdContaCorrente, @Numero, @Nome, @Cpf, @Ativo, @Senha, @Salt)";
 
-        var id = await _context.Connection.QuerySingleAsync<int>(sql, contaCorrente);
-        contaCorrente.Id = id;
+        await _context.Connection.ExecuteAsync(sql, contaCorrente);
         return contaCorrente;
     }
 
     public async Task AtualizarAsync(Domain.Entities.ContaCorrente contaCorrente)
     {
         const string sql = @"
-            UPDATE ContaCorrente 
-            SET Cpf = @Cpf, NomeTitular = @NomeTitular, NumeroConta = @NumeroConta, 
-                Senha = @Senha, Ativo = @Ativo, DataCriacao = @DataCriacao, DataInativacao = @DataInativacao
-            WHERE Id = @Id";
+            UPDATE contacorrente 
+            SET numero = @Numero, nome = @Nome, cpf = @Cpf, ativo = @Ativo, senha = @Senha, salt = @Salt
+            WHERE idcontacorrente = @IdContaCorrente";
 
         await _context.Connection.ExecuteAsync(sql, contaCorrente);
     }
 
     public async Task<bool> ExisteCpfAsync(string cpf)
     {
-        const string sql = "SELECT COUNT(1) FROM ContaCorrente WHERE Cpf = @Cpf";
+        const string sql = "SELECT COUNT(1) FROM contacorrente WHERE cpf = @Cpf";
         var count = await _context.Connection.QuerySingleAsync<int>(sql, new { Cpf = cpf });
         return count > 0;
     }
 
-    public async Task<bool> ExisteNumeroContaAsync(string numeroConta)
+    public async Task<bool> ExisteNumeroContaAsync(int numero)
     {
-        const string sql = "SELECT COUNT(1) FROM ContaCorrente WHERE NumeroConta = @NumeroConta";
-        var count = await _context.Connection.QuerySingleAsync<int>(sql, new { NumeroConta = numeroConta });
+        const string sql = "SELECT COUNT(1) FROM contacorrente WHERE numero = @Numero";
+        var count = await _context.Connection.QuerySingleAsync<int>(sql, new { Numero = numero });
         return count > 0;
     }
 }

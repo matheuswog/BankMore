@@ -32,7 +32,7 @@ public class TarifaController : ControllerBase
         var command = new ProcessarTarifaCommand
         {
             IdentificacaoRequisicao = request.IdentificacaoRequisicao,
-            ContaCorrenteId = request.ContaCorrenteId,
+            IdContaCorrente = request.IdContaCorrente,
             ValorTransferencia = request.ValorTransferencia
         };
 
@@ -51,6 +51,6 @@ public class TarifaController : ControllerBase
 public class ProcessarTarifaRequest
 {
     public string IdentificacaoRequisicao { get; set; } = string.Empty;
-    public int ContaCorrenteId { get; set; }
+    public string IdContaCorrente { get; set; } = string.Empty;
     public decimal ValorTransferencia { get; set; }
 }

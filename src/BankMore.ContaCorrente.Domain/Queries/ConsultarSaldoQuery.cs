@@ -5,7 +5,7 @@ namespace BankMore.ContaCorrente.Domain.Queries;
 
 public class ConsultarSaldoQuery : IRequest<Result<SaldoResponse>>
 {
-    public int ContaCorrenteId { get; set; }
+    public string IdContaCorrente { get; set; } = string.Empty;
 }
 
 public class Result<T>

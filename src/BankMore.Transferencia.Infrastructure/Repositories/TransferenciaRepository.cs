@@ -16,29 +16,22 @@ public class TransferenciaRepository : ITransferenciaRepository
     public async Task<Domain.Entities.Transferencia> InserirAsync(Domain.Entities.Transferencia transferencia)
     {
         const string sql = @"
-            INSERT INTO Transferencia (IdentificacaoRequisicao, ContaOrigemId, ContaDestinoId, Valor, DataTransferencia, Descricao, Processada)
-            VALUES (@IdentificacaoRequisicao, @ContaOrigemId, @ContaDestinoId, @Valor, @DataTransferencia, @Descricao, @Processada);
-            SELECT last_insert_rowid();";
+            INSERT INTO transferencia (idtransferencia, idcontacorrente_origem, idcontacorrente_destino, datamovimento, valor)
+            VALUES (@IdTransferencia, @IdContaCorrenteOrigem, @IdContaCorrenteDestino, @DataMovimento, @Valor)";
 
-        var id = await _context.Connection.QuerySingleAsync<int>(sql, transferencia);
-        transferencia.Id = id;
+        await _context.Connection.ExecuteAsync(sql, transferencia);
         return transferencia;
     }
 
-    public async Task<bool> ExisteIdentificacaoRequisicaoAsync(string identificacaoRequisicao)
-    {
-        const string sql = "SELECT COUNT(1) FROM Transferencia WHERE IdentificacaoRequisicao = @IdentificacaoRequisicao";
-        var count = await _context.Connection.QuerySingleAsync<int>(sql, new { IdentificacaoRequisicao = identificacaoRequisicao });
-        return count > 0;
-    }
 
-    public async Task<Domain.Entities.Transferencia?> ObterPorIdAsync(int id)
+    public async Task<Domain.Entities.Transferencia?> ObterPorIdAsync(string idTransferencia)
     {
         const string sql = @"
-            SELECT Id, IdentificacaoRequisicao, ContaOrigemId, ContaDestinoId, Valor, DataTransferencia, Descricao, Processada
-            FROM Transferencia 
-            WHERE Id = @Id";
+            SELECT idtransferencia AS IdTransferencia, idcontacorrente_origem AS IdContaCorrenteOrigem, 
+                   idcontacorrente_destino AS IdContaCorrenteDestino, datamovimento AS DataMovimento, valor AS Valor
+            FROM transferencia 
+            WHERE idtransferencia = @IdTransferencia";
 
-        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.Transferencia>(sql, new { Id = id });
+        return await _context.Connection.QueryFirstOrDefaultAsync<Domain.Entities.Transferencia>(sql, new { IdTransferencia = idTransferencia });
     }
 }

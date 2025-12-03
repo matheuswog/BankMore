@@ -4,20 +4,18 @@ namespace BankMore.Tarifa.Domain.Entities;
 
 public class Tarifa
 {
-    public int Id { get; set; }
+    [Required]
+    [StringLength(37)]
+    public string IdTarifa { get; set; } = string.Empty;
     
     [Required]
-    public int ContaCorrenteId { get; set; }
+    [StringLength(37)]
+    public string IdContaCorrente { get; set; } = string.Empty;
     
     [Required]
-    public decimal ValorTarifado { get; set; }
-    
-    public DateTime DataTarifacao { get; set; } = DateTime.UtcNow;
-    
-    [StringLength(500)]
-    public string? Descricao { get; set; }
+    [StringLength(25)]
+    public string DataMovimento { get; set; } = string.Empty;
     
     [Required]
-    [StringLength(50)]
-    public string IdentificacaoTransferencia { get; set; } = string.Empty;
+    public decimal Valor { get; set; }
 }

@@ -31,12 +31,12 @@ public class LoginHandler : IRequestHandler<LoginCommand, Result<LoginResponse>>
             return Result<LoginResponse>.ErroResultado("Conta não encontrada", TipoFalha.UserUnauthorized.ToString());
         }
 
-        if (!conta.Ativo)
+        if (conta.Ativo != 1)
         {
             return Result<LoginResponse>.ErroResultado("Conta inativa", TipoFalha.UserUnauthorized.ToString());
         }
 
-        var senhaCriptografada = CriptografarSenha(request.Senha);
+        var senhaCriptografada = CriptografarSenha(request.Senha, conta.Salt);
         if (conta.Senha != senhaCriptografada)
         {
             return Result<LoginResponse>.ErroResultado("Senha inválida", TipoFalha.UserUnauthorized.ToString());
@@ -47,17 +47,17 @@ public class LoginHandler : IRequestHandler<LoginCommand, Result<LoginResponse>>
         var response = new LoginResponse
         {
             Token = token,
-            ContaCorrenteId = conta.Id,
-            NumeroConta = conta.NumeroConta
+            IdContaCorrente = conta.IdContaCorrente,
+            NumeroConta = conta.Numero.ToString()
         };
 
         return Result<LoginResponse>.SucessoResultado(response);
     }
 
-    private static string CriptografarSenha(string senha)
+    private static string CriptografarSenha(string senha, string salt)
     {
         using var sha256 = SHA256.Create();
-        var bytes = Encoding.UTF8.GetBytes(senha);
+        var bytes = Encoding.UTF8.GetBytes(senha + salt);
         var hash = sha256.ComputeHash(bytes);
         return Convert.ToBase64String(hash);
     }
@@ -69,10 +69,9 @@ public class LoginHandler : IRequestHandler<LoginCommand, Result<LoginResponse>>
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, conta.Id.ToString()),
-            new Claim(ClaimTypes.Name, conta.NumeroConta),
-            new Claim("Cpf", conta.Cpf),
-            new Claim("NomeTitular", conta.NomeTitular)
+            new Claim(ClaimTypes.NameIdentifier, conta.IdContaCorrente),
+            new Claim("NumeroConta", conta.Numero.ToString()),
+            new Claim("Nome", conta.Nome)
         };
 
         var token = new JwtSecurityToken(

@@ -30,14 +30,21 @@ public class TransferenciaController : ControllerBase
     [ProducesResponseType(403)]
     public async Task<IActionResult> EfetuarTransferencia([FromBody] EfetuarTransferenciaRequest request)
     {
-        var contaOrigemId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var idContaCorrenteOrigem = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(idContaCorrenteOrigem))
+        {
+            return Forbid();
+        }
 
+        var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+        
         var command = new EfetuarTransferenciaCommand
         {
             IdentificacaoRequisicao = request.IdentificacaoRequisicao,
-            ContaOrigemId = contaOrigemId,
-            ContaDestinoId = request.ContaDestinoId,
-            Valor = request.Valor
+            IdContaCorrenteOrigem = idContaCorrenteOrigem,
+            NumeroContaDestino = request.NumeroContaDestino,
+            Valor = request.Valor,
+            TokenJwt = token
         };
 
         var result = await _mediator.Send(command);
@@ -55,6 +62,6 @@ public class TransferenciaController : ControllerBase
 public class EfetuarTransferenciaRequest
 {
     public string IdentificacaoRequisicao { get; set; } = string.Empty;
-    public int ContaDestinoId { get; set; }
+    public int NumeroContaDestino { get; set; }
     public decimal Valor { get; set; }
 }

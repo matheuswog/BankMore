@@ -19,45 +19,48 @@ public class CadastrarContaCorrenteHandler : IRequestHandler<CadastrarContaCorre
 
     public async Task<Result<string>> Handle(CadastrarContaCorrenteCommand request, CancellationToken cancellationToken)
     {
-        if (!ValidarCpf(request.Cpf))
+        var cpfLimpo = request.Cpf.Replace(".", "").Replace("-", "").Trim();
+        
+        if (!ValidarCpf(cpfLimpo))
         {
             return Result<string>.ErroResultado("CPF inválido", TipoFalha.InvalidDocument.ToString());
         }
 
-        if (await _repository.ExisteCpfAsync(request.Cpf))
+        if (await _repository.ExisteCpfAsync(cpfLimpo))
         {
             return Result<string>.ErroResultado("CPF já cadastrado", TipoFalha.InvalidDocument.ToString());
         }
 
-        // TODO: Implementar geração mais robusta no futuro
-        var numeroConta = GerarNumeroConta();
-
-        while (await _repository.ExisteNumeroContaAsync(numeroConta))
+        var random = new Random();
+        int numeroConta;
+        do
         {
-            numeroConta = GerarNumeroConta();
-        }
+            numeroConta = random.Next(100000, 999999);
+        } while (await _repository.ExisteNumeroContaAsync(numeroConta));
 
-        var senhaCriptografada = CriptografarSenha(request.Senha);
+        var idContaCorrente = Guid.NewGuid().ToString();
+
+        var salt = GerarSalt();
+        var senhaCriptografada = CriptografarSenha(request.Senha, salt);
 
         var contaCorrente = new Entities.ContaCorrente
         {
-            Cpf = request.Cpf,
-            NomeTitular = request.NomeTitular,
-            NumeroConta = numeroConta,
+            IdContaCorrente = idContaCorrente,
+            Numero = numeroConta,
+            Nome = request.NomeTitular,
+            Cpf = cpfLimpo,
             Senha = senhaCriptografada,
-            Ativo = true,
-            DataCriacao = DateTime.UtcNow
+            Salt = salt,
+            Ativo = 1
         };
 
         await _repository.InserirAsync(contaCorrente);
 
-        return Result<string>.SucessoResultado(numeroConta);
+        return Result<string>.SucessoResultado(numeroConta.ToString());
     }
 
     private static bool ValidarCpf(string cpf)
     {
-        cpf = cpf.Replace(".", "").Replace("-", "").Trim();
-
         if (cpf.Length != 11 || cpf.All(c => c == cpf[0]))
             return false;
 
@@ -94,16 +97,20 @@ public class CadastrarContaCorrenteHandler : IRequestHandler<CadastrarContaCorre
         return cpf.EndsWith(digito);
     }
 
-    private static string GerarNumeroConta()
+    private static string GerarSalt()
     {
-        var random = new Random();
-        return random.Next(100000, 999999).ToString();
+        var bytes = new byte[16];
+        using (var rng = RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(bytes);
+        }
+        return Convert.ToBase64String(bytes);
     }
 
-    private static string CriptografarSenha(string senha)
+    private static string CriptografarSenha(string senha, string salt)
     {
         using var sha256 = SHA256.Create();
-        var bytes = Encoding.UTF8.GetBytes(senha);
+        var bytes = Encoding.UTF8.GetBytes(senha + salt);
         var hash = sha256.ComputeHash(bytes);
         return Convert.ToBase64String(hash);
     }
